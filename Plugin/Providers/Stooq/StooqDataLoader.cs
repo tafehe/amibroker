@@ -13,8 +13,11 @@ namespace AmiBroker.Plugin.Providers.Stooq
     {
         private const string DownloadLastRun = "LAST_DOWNLOAD_RUN";
         private const string LastEntryInFile = "LAST_ENTRY_IN_FILE";
+        private const string SecondTimeCheckAfter = "SECOND_CHECK_ON_OR_AFTER";
         private const string DefaultStartDate = "1970-01-01 00:00";
-        private const string Url = @"http://stooq.pl/q/d/l/?s={0}&d1={1}&d2={2}&i=d";
+        private const string EodUrl =     @"http://stooq.pl/q/d/l/?s={0}&d1={1}&d2={2}&i=d";
+        private const string IntradyUrl = @"http://stooq.pl/q/l/?s={0}&f=d1ohlcv";
+        private readonly Regex LinePatter = new Regex(@"^[0-9,\.,-]+$");
         private readonly Dictionary<string, string> _config;
         private readonly string _configFile;
         private readonly string _file;
@@ -31,9 +34,15 @@ namespace AmiBroker.Plugin.Providers.Stooq
         public List<string> LoadFile()
         {
             var result = LoadLocalFile();
-            if (!IsRefreshNeeded()) return result;
+            List<string> remoteFile;
+            if (IsRefreshNeeded())
+            {
+                remoteFile = LoadRemoteEODFile();
+                result = Merge(result, remoteFile);
+            }
+            remoteFile = LoadRemoteIntradayFile();
+            result = Merge(result, remoteFile);
 
-            var remoteFile = LoadRemoteFile();
             result = Merge(result, remoteFile);
             SaveFile(result);
             SaveConfig();
@@ -47,13 +56,16 @@ namespace AmiBroker.Plugin.Providers.Stooq
             if (second.Count < 2) return first;
             if (first.Count < 2) return second;
 
-            var firstDateInSecond = Convert.ToInt64(second[1].Split(',')[0].Replace("-", ""));
+            var validLineIndex = GetFirstValidLineIndex(second);
+            if (validLineIndex == -1) return first;
+
+            var firstDateInSecond = Convert.ToInt64(second[validLineIndex].Split(',')[0].Replace("-", ""));
 
             // find the last entry in one which is older then then first entry in second list
             int i;
-            for (i = first.Count - 1; i > first.Count - second.Count; i--)
+            for (i = first.Count - 1; i > first.Count - second.Count - 1; i--)
             {
-                if (String.IsNullOrEmpty(first[i])) continue;
+                if (!IsValid(first[i])) continue;
 
                 var secondDate = Convert.ToInt64(first[i].Split(',')[0].Replace("-", ""));
                 if (secondDate < firstDateInSecond)
@@ -63,19 +75,41 @@ namespace AmiBroker.Plugin.Providers.Stooq
             }
 
             var result = first.GetRange(0, i + 1);
-            result.AddRange(second.GetRange(1, second.Count - 1));
+            result.AddRange(second.GetRange(validLineIndex, second.Count - 1));
 
             return result;
         }
 
-        private List<string> LoadRemoteFile()
+        private int GetFirstValidLineIndex(List<string> list)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (IsValid(list[i])) return i;
+            }
+
+            return -1;
+        }
+
+        private List<string> LoadRemoteEODFile()
+        {
+            var startDate = _config.GetValue(LastEntryInFile, "19700101").Replace("-", "");
+            var endDate = DateTime.Now.ToString("yyyyMMdd");
+            var url = String.Format(EodUrl, _ticker, startDate, endDate);
+
+            return GetUrlReponse(url);
+        } 
+
+        private List<string> LoadRemoteIntradayFile()
+        {
+            var url = String.Format(IntradyUrl, _ticker);
+
+            return GetUrlReponse(url);
+        }
+
+        private List<string> GetUrlReponse(string url)
         {
             try
             {
-                var startDate = _config.GetValue(LastEntryInFile, "19700101").Replace("-", "");
-                var endDate = DateTime.Now.ToString("yyyyMMdd");
-                var url = String.Format(Url, _ticker, startDate, endDate);
-
                 var request = WebRequest.Create(url);
                 var response = request.GetResponse();
 
@@ -118,13 +152,30 @@ namespace AmiBroker.Plugin.Providers.Stooq
             return new List<string>();
         }
 
+        private bool IsValid(string line)
+        {
+            if (String.IsNullOrEmpty(line))
+            {
+                return false;
+            }
+
+            return LinePatter.IsMatch(line);
+        }
+
         private Boolean IsRefreshNeeded()
         {
-            return DateTime.Now.Date > DateTime.ParseExact(
-                _config.GetValue(DownloadLastRun, DefaultStartDate),
-                "yyyy-MM-dd HH:mm",
-                CultureInfo.InstalledUICulture
-                ).Date;
+            DateTime downloadLastRun = _config.GetDateValue(DownloadLastRun, DefaultStartDate);
+            DateTime now = DateTime.Now;
+
+            if (now.Date > downloadLastRun.Date) return true;
+
+            TimeSpan secondCheckTime = _config.GetTimeValue(SecondTimeCheckAfter);
+
+            // if last downloaded time was before second time download check
+            // and now is after second time check then refresh is needed.
+            if (downloadLastRun.TimeOfDay <= secondCheckTime && secondCheckTime <= now.TimeOfDay) return true;
+
+            return false;
         }
 
         private void SaveFile(List<string> fileContent)
@@ -173,6 +224,23 @@ namespace AmiBroker.Plugin.Providers.Stooq
             }
 
             dictionary.Add(key, value);
+        }
+
+        public static DateTime GetDateValue(this Dictionary<string, string> dictionary, string key, string defaultValue)
+        {
+            var value = GetValue(dictionary, key, defaultValue);
+            if (!String.IsNullOrEmpty(value))
+            {
+                return DateTime.ParseExact(value, "yyyy-MM-dd HH:mm", CultureInfo.InstalledUICulture);
+            }
+
+            return DateTime.MinValue;
+        }
+
+        public static TimeSpan GetTimeValue(this Dictionary<string, string> dictionary, string key)
+        {
+            var value = GetValue(dictionary, key, "18:00");
+            return TimeSpan.ParseExact(value, "hh\\:mm", CultureInfo.InstalledUICulture);
         }
     }
 }

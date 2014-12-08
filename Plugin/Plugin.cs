@@ -102,32 +102,32 @@ namespace AmiBroker.Plugin
         {
             Debug.WriteLine("GetQuotesEx(ticker: " + ticker + ", periodicity: " + periodicity + ", lastValid: " + lastValid + ", size: " + size + ", ...)");
 
-            var existingQuotes = new Quotation[0];
+            //var existingQuotes = new Quotation[0];
 
-            if (lastValid > 2)
-            {
-                Array.Resize<Quotation>(ref existingQuotes, lastValid + 1);
+            //if (lastValid > 2)
+            //{
+            //    Array.Resize<Quotation>(ref existingQuotes, lastValid + 1);
 
-                for (var i = 0; i <= lastValid; i++)
-                {
-                    existingQuotes[i] = new Quotation
-                    {
-                        DateTime = quotes[i].DateTime,
-                        Open = quotes[i].Open,
-                        High = quotes[i].High,
-                        Low = quotes[i].Low,
-                        Price = quotes[i].Price,
-                        Volume = quotes[i].Volume,
-                        OpenInterest = quotes[i].OpenInterest,
-                        AuxData1 = quotes[i].AuxData1,
-                        AuxData2 = quotes[i].AuxData2
-                    };
-                }
+            //    for (var i = 0; i <= lastValid; i++)
+            //    {
+            //        existingQuotes[i] = new Quotation
+            //        {
+            //            DateTime = quotes[i].DateTime,
+            //            Open = quotes[i].Open,
+            //            High = quotes[i].High,
+            //            Low = quotes[i].Low,
+            //            Price = quotes[i].Price,
+            //            Volume = quotes[i].Volume,
+            //            OpenInterest = quotes[i].OpenInterest,
+            //            AuxData1 = quotes[i].AuxData1,
+            //            AuxData2 = quotes[i].AuxData2
+            //        };
+            //    }
 
-                Array.Sort<Quotation>(existingQuotes, new Comparison<Quotation>((q1, q2) => q1.DateTime.CompareTo(q2.DateTime)));
-            }
+            //    Array.Sort<Quotation>(existingQuotes, new Comparison<Quotation>((q1, q2) => q1.DateTime.CompareTo(q2.DateTime)));
+            //}
 
-            var newQuotes = DataSource.GetQuotes(ticker, periodicity, size, existingQuotes);
+            var newQuotes = DataSource.GetQuotes(ticker, periodicity, size, null);
 
             if (newQuotes.Any())
             {
