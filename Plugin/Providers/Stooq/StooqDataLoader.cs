@@ -41,29 +41,29 @@ namespace AmiBroker.Plugin.Providers.Stooq
             return result;
         }
 
-        private List<string> Merge(List<string> one, List<string> two)
+        private List<string> Merge(List<string> first, List<string> second)
         {
             // first line of the stooq file has to be skipped
-            if (two.Count < 2) return one;
-            if (one.Count < 2) return two;
+            if (second.Count < 2) return first;
+            if (first.Count < 2) return second;
 
-            var firstDateInSecond = Convert.ToInt64(two[1].Split(',')[0].Replace("-", ""));
+            var firstDateInSecond = Convert.ToInt64(second[1].Split(',')[0].Replace("-", ""));
 
             // find the last entry in one which is older then then first entry in second list
             int i;
-            for (i = one.Count - 1; i > one.Count - two.Count; i--)
+            for (i = first.Count - 1; i > first.Count - second.Count; i--)
             {
-                if (String.IsNullOrEmpty(one[i])) continue;
+                if (String.IsNullOrEmpty(first[i])) continue;
 
-                var twoDate = Convert.ToInt64(one[i].Split(',')[0].Replace("-", ""));
-                if (twoDate < firstDateInSecond)
+                var secondDate = Convert.ToInt64(first[i].Split(',')[0].Replace("-", ""));
+                if (secondDate < firstDateInSecond)
                 {
                     break;
                 }
             }
 
-            var result = one.GetRange(0, i + 1);
-            result.AddRange(two.GetRange(1, two.Count - 1));
+            var result = first.GetRange(0, i + 1);
+            result.AddRange(second.GetRange(1, second.Count - 1));
 
             return result;
         }
