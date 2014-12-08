@@ -4,6 +4,8 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 
+using AmiBroker.Plugin.Providers.Stooq;
+
 namespace AmiBroker.Plugin
 {
     using System;
@@ -46,11 +48,11 @@ namespace AmiBroker.Plugin
         [DllExport(CallingConvention = CallingConvention.Cdecl)]
         public static void GetPluginInfo(ref PluginInfo pluginInfo)
         {
-            pluginInfo.Name = "AmiBroker\x00ae data Plug-in";
-            pluginInfo.Vendor = "KriaSoft LLC";
+            pluginInfo.Name = "http://stooq.pl data Plug-in";
+            pluginInfo.Vendor = "KEPISO.PL";
             pluginInfo.Type = PluginType.Data;
             pluginInfo.Version = 10000; // v1.0.0
-            pluginInfo.IDCode = new PluginID("TEST");
+            pluginInfo.IDCode = new PluginID("STUQ");
             pluginInfo.Certificate = 0;
             pluginInfo.MinAmiVersion = 5600000; // v5.60
             pluginInfo.StructSize = Marshal.SizeOf((PluginInfo)pluginInfo);
@@ -72,7 +74,7 @@ namespace AmiBroker.Plugin
             switch (notification->Reason)
             {
                 case PluginNotificationReason.DatabaseLoaded:
-                    DataSource = new DataSource(
+                    DataSource = new StooqDataSource(
                         databasePath: Marshal.PtrToStringAnsi(notification->DatabasePath),
                         mainWnd: notification->MainWnd);
                     RightClickMenu = new RightClickMenu(DataSource);
