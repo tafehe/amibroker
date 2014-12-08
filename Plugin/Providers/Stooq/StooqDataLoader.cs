@@ -17,7 +17,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
         private const string DefaultStartDate = "1970-01-01 00:00";
         private const string EodUrl =     @"http://stooq.pl/q/d/l/?s={0}&d1={1}&d2={2}&i=d";
         private const string IntradyUrl = @"http://stooq.pl/q/l/?s={0}&f=d1ohlcv";
-        private readonly Regex LinePatter = new Regex(@"^[0-9,\.,-]+$");
+        private readonly Regex _linePatter = new Regex(@"^[0-9,\.,-]+$");
         private readonly Dictionary<string, string> _config;
         private readonly string _configFile;
         private readonly string _file;
@@ -31,13 +31,13 @@ namespace AmiBroker.Plugin.Providers.Stooq
             _config = LoadConfig();
         }
 
-        public List<string> LoadFile()
+        public IEnumerable<string> LoadFile()
         {
             var result = LoadLocalFile();
             List<string> remoteFile;
             if (IsRefreshNeeded())
             {
-                remoteFile = LoadRemoteEODFile();
+                remoteFile = LoadRemoteEodFile();
                 result = Merge(result, remoteFile);
             }
             remoteFile = LoadRemoteIntradayFile();
@@ -90,7 +90,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
             return -1;
         }
 
-        private List<string> LoadRemoteEODFile()
+        private List<string> LoadRemoteEodFile()
         {
             var startDate = _config.GetValue(LastEntryInFile, "19700101").Replace("-", "");
             var endDate = DateTime.Now.ToString("yyyyMMdd");
@@ -115,11 +115,14 @@ namespace AmiBroker.Plugin.Providers.Stooq
 
                 var dataStream = response.GetResponseStream();
                 // Open the stream using a StreamReader for easy access.
-                var reader = new StreamReader(dataStream);
-                // Read the content.
-                var responseFromServer = reader.ReadToEnd();
+                if (dataStream != null)
+                {
+                    var reader = new StreamReader(dataStream);
+                    // Read the content.
+                    var responseFromServer = reader.ReadToEnd();
 
-                return Regex.Split(responseFromServer, @"\r\n").ToList();
+                    return Regex.Split(responseFromServer, @"\r\n").ToList();
+                }
             }
             catch (Exception e)
             {
@@ -159,7 +162,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
                 return false;
             }
 
-            return LinePatter.IsMatch(line);
+            return _linePatter.IsMatch(line);
         }
 
         private Boolean IsRefreshNeeded()

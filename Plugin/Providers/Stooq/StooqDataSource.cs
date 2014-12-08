@@ -18,7 +18,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
         public override Quotation[] GetQuotes(string ticker, Periodicity periodicity, int limit,
             Quotation[] existingQuotes)
         {
-            var result = GetQotations(ticker);
+            var result = GetQuotes(ticker);
 
             if (result.Count > limit)
             {
@@ -28,7 +28,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
             return result.ToArray();
         }
 
-        public List<Quotation> GetQotations(string ticker)
+        private List<Quotation> GetQuotes(string ticker)
         {
             var list = new List<Quotation>();
             var fileContent = new StooqDataLoader(ticker, _databasePath).LoadFile();
