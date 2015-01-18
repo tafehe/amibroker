@@ -42,10 +42,10 @@ namespace AmiBroker.Plugin.Providers.Stooq
                     DateTime = new AmiDate(
                         DateTime.ParseExact(value[0].Replace("-", ""), "yyyyMMdd", CultureInfo.InvariantCulture),
                         true),
-                    Open = Convert.ToSingle(value[1], CultureInfo.InstalledUICulture),
-                    High = Convert.ToSingle(value[2], CultureInfo.InstalledUICulture),
-                    Low = Convert.ToSingle(value[3], CultureInfo.InstalledUICulture),
-                    Price = Convert.ToSingle(value[4], CultureInfo.InstalledUICulture),
+                    Open = Convert.ToSingle(value[1], CultureInfo.InvariantCulture),
+                    High = Convert.ToSingle(value[2], CultureInfo.InvariantCulture),
+                    Low = Convert.ToSingle(value[3], CultureInfo.InvariantCulture),
+                    Price = Convert.ToSingle(value[4], CultureInfo.InvariantCulture),
                     // not always volume is given in the file
                     Volume =
                         value.Length < 6 ? 0 : Convert.ToSingle(value[5], CultureInfo.InstalledUICulture)
