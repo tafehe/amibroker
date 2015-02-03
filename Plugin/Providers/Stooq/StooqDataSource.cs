@@ -47,8 +47,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
                     Low = Convert.ToSingle(value[3], CultureInfo.InvariantCulture),
                     Price = Convert.ToSingle(value[4], CultureInfo.InvariantCulture),
                     // not always volume is given in the file
-                    Volume =
-                        value.Length < 6 ? 0 : Convert.ToSingle(value[5], CultureInfo.InstalledUICulture)
+                    Volume = value.Length < 6 ? 0 : Convert.ToSingle(value[5], CultureInfo.InvariantCulture)
                 };
 
                 list.Add(quotation);

@@ -41,13 +41,11 @@ namespace AmiBroker.Plugin.Providers.Stooq
                 result = Merge(result, remoteFile);
             }
             remoteFile = LoadRemoteIntradayFile();
-            result = Merge(result, remoteFile);
 
-            result = Merge(result, remoteFile);
             SaveFile(result);
             SaveConfig();
 
-            return result;
+            return Merge(result, remoteFile);
         }
 
         private List<string> Merge(List<string> first, List<string> second)
@@ -61,7 +59,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
 
             var firstDateInSecond = Convert.ToInt64(second[validLineIndex].Split(',')[0].Replace("-", ""));
 
-            // find the last entry in one which is older then then first entry in second list
+            // find the last entry in first list which is older then the first entry in the second list
             int i;
             for (i = first.Count - 1; i > first.Count - second.Count - 1; i--)
             {
@@ -93,7 +91,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
         private List<string> LoadRemoteEodFile()
         {
             var startDate = _config.GetValue(LastEntryInFile, "19700101").Replace("-", "");
-            var endDate = DateTime.Now.ToString("yyyyMMdd");
+            var endDate = DateTime.Now.AddDays(-1).ToString("yyyyMMdd");
             var url = String.Format(EodUrl, _ticker, startDate, endDate);
 
             return GetUrlReponse(url);
@@ -167,18 +165,16 @@ namespace AmiBroker.Plugin.Providers.Stooq
 
         private Boolean IsRefreshNeeded()
         {
-            DateTime downloadLastRun = _config.GetDateValue(DownloadLastRun, DefaultStartDate);
-            DateTime now = DateTime.Now;
+            var downloadLastRun = _config.GetDateValue(DownloadLastRun, DefaultStartDate);
+            var now = DateTime.Now;
 
             if (now.Date > downloadLastRun.Date) return true;
 
-            TimeSpan secondCheckTime = _config.GetTimeValue(SecondTimeCheckAfter);
+            var secondCheckTime = _config.GetTimeValue(SecondTimeCheckAfter);
 
             // if last downloaded time was before second time download check
             // and now is after second time check then refresh is needed.
-            if (downloadLastRun.TimeOfDay <= secondCheckTime && secondCheckTime <= now.TimeOfDay) return true;
-
-            return false;
+            return downloadLastRun.TimeOfDay <= secondCheckTime && secondCheckTime <= now.TimeOfDay;
         }
 
         private void SaveFile(List<string> fileContent)
