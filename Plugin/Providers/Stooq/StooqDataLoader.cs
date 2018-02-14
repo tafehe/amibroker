@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -15,8 +16,8 @@ namespace AmiBroker.Plugin.Providers.Stooq
         private const string LastEntryInFile = "LAST_ENTRY_IN_FILE";
         private const string SecondTimeCheckAfter = "SECOND_CHECK_ON_OR_AFTER";
         private const string DefaultStartDate = "1970-01-01 00:00";
-        private const string EodUrl =     @"http://stooq.pl/q/d/l/?s={0}&d1={1}&d2={2}&i=d";
-        private const string IntradyUrl = @"http://stooq.pl/q/l/?s={0}&f=d1ohlcv";
+        private const string EodUrl =     "https://stooq.pl/q/d/l/?s={0}&d1={1}&d2={2}&i=d";
+        private const string IntradyUrl = "https://stooq.pl/q/l/?s={0}&f=d1ohlcv";
         private readonly Regex _linePatter = new Regex(@"^[0-9,\.,-]+$");
         private readonly Dictionary<string, string> _config;
         private readonly string _configFile;
@@ -34,7 +35,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
         public IEnumerable<string> LoadFile()
         {
             var result = LoadLocalFile();
-            List<string> remoteFile;
+            IEnumerable<string> remoteFile;
             if (IsRefreshNeeded())
             {
                 remoteFile = LoadRemoteEodFile();
@@ -48,47 +49,38 @@ namespace AmiBroker.Plugin.Providers.Stooq
             return Merge(result, remoteFile);
         }
 
-        private List<string> Merge(List<string> first, List<string> second)
+        private IEnumerable<string> Merge(IEnumerable<string> first, IEnumerable<string> second)
         {
             // first line of the stooq file has to be skipped
-            if (second.Count < 2) return first;
-            if (first.Count < 2) return second;
+            if (second.Count() < 2) return first;
+            if (first.Count() < 2) return second;
 
-            var validLineIndex = GetFirstValidLineIndex(second);
-            if (validLineIndex == -1) return first;
+            var validatedSecond = second.Where(x => IsValid(x));
 
-            var firstDateInSecond = Convert.ToInt64(second[validLineIndex].Split(',')[0].Replace("-", ""));
+            if (!validatedSecond.Any()) return first;
+
+            var firstDateInSecond = GetStartDateAsLong(validatedSecond.First());
 
             // find the last entry in first list which is older then the first entry in the second list
-            int i;
-            for (i = first.Count - 1; i > first.Count - second.Count - 1; i--)
-            {
-                if (!IsValid(first[i])) continue;
+            var validatedFirst = first
+                .Where(x => !String.IsNullOrEmpty(x))
+                .TakeWhile(x => GetStartDateAsLong(x) < firstDateInSecond).ToList();
+            validatedFirst.AddRange(validatedSecond);
 
-                var secondDate = Convert.ToInt64(first[i].Split(',')[0].Replace("-", ""));
-                if (secondDate < firstDateInSecond)
-                {
-                    break;
-                }
-            }
-
-            var result = first.GetRange(0, i + 1);
-            result.AddRange(second.GetRange(validLineIndex, second.Count - 1));
-
-            return result;
+            return validatedFirst;
         }
 
-        private int GetFirstValidLineIndex(List<string> list)
+        private long GetStartDateAsLong(string line)
         {
-            for (int i = 0; i < list.Count; i++)
+            if (IsValid(line)) 
             {
-                if (IsValid(list[i])) return i;
+                return Convert.ToInt64(line.Split(',')[0].Replace("-", ""));
             }
 
-            return -1;
+            return String.IsNullOrEmpty(line) ? 99999999L : -1L;
         }
 
-        private List<string> LoadRemoteEodFile()
+        private IEnumerable<string> LoadRemoteEodFile()
         {
             var startDate = _config.GetValue(LastEntryInFile, "19700101").Replace("-", "");
             var endDate = DateTime.Now.AddDays(-1).ToString("yyyyMMdd");
@@ -97,14 +89,14 @@ namespace AmiBroker.Plugin.Providers.Stooq
             return GetUrlReponse(url);
         } 
 
-        private List<string> LoadRemoteIntradayFile()
+        private IEnumerable<string> LoadRemoteIntradayFile()
         {
             var url = String.Format(IntradyUrl, _ticker);
 
             return GetUrlReponse(url);
         }
 
-        private List<string> GetUrlReponse(string url)
+        private IEnumerable<string> GetUrlReponse(string url)
         {
             try
             {
@@ -127,31 +119,26 @@ namespace AmiBroker.Plugin.Providers.Stooq
                 Debug.WriteLine(e.ToString());
             }
 
-            return new List<string>();
+            return Enumerable.Empty<string>();
         }
 
-        private List<string> LoadLocalFile()
+        private IEnumerable<string> LoadLocalFile()
         {
-            if (File.Exists(_file))
-            {
-                var fileContent = File.ReadAllLines(_file).ToList();
+            if (File.Exists(_file)) {
+                var fileContent = File.ReadAllLines(_file);
 
-                if (fileContent.Count > 0)
-                {
-                    for (var i = fileContent.Count - 1; i > 0; i--)
-                    {
-                        if (!String.IsNullOrEmpty(fileContent[i]))
-                        {
-                            var lastLine = fileContent[i].Split(',')[0];
-                            _config.AddOrReplaceValue(LastEntryInFile, lastLine);
-                            break;
-                        }
-                    }
-                }
-                return fileContent;
+                var lastLine = fileContent.Where(x => !String.IsNullOrEmpty(x))
+                    .DefaultIfEmpty(String.Empty)
+                    .Select(x => x.Split(',')[0])
+                    .Last();
+                _config.AddOrReplaceValue(LastEntryInFile, lastLine);
+
+                return fileContent.ToList();
             }
-            return new List<string>();
+
+            return Enumerable.Empty<string>();
         }
+        
 
         private bool IsValid(string line)
         {
@@ -177,7 +164,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
             return downloadLastRun.TimeOfDay <= secondCheckTime && secondCheckTime <= now.TimeOfDay;
         }
 
-        private void SaveFile(List<string> fileContent)
+        private void SaveFile(IEnumerable<string> fileContent)
         {
             _config.AddOrReplaceValue(DownloadLastRun, DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
             File.WriteAllLines(_file, fileContent);
@@ -189,7 +176,9 @@ namespace AmiBroker.Plugin.Providers.Stooq
             if (File.Exists(_configFile))
             {
                 foreach (var row in File.ReadAllLines(_configFile))
+                {
                     data.Add(row.Split('=')[0], String.Join("=", row.Split('=').Skip(1).ToArray()));
+                }
             }
 
             return data;
@@ -206,8 +195,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
     {
         public static string GetValue(this Dictionary<string, string> dictionary, string key, string defaultValue)
         {
-            string value;
-            if (!dictionary.TryGetValue(key, out value))
+            if (!dictionary.TryGetValue(key, out string value))
             {
                 value = defaultValue;
             }
