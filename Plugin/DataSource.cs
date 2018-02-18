@@ -4,21 +4,14 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Windows.Documents;
 
 namespace AmiBroker.Plugin
 {
     using System;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Windows;
 
     using Models;
 
-    public class DataSource
+    public abstract class DataSource
     {
         public DataSource(string databasePath, IntPtr mainWnd)
         {
@@ -38,11 +31,6 @@ namespace AmiBroker.Plugin
         /// </summary>
         public dynamic Broker { get; private set; }
 
-        public virtual Quotation[] GetQuotes(string ticker, Periodicity periodicity, int limit, Quotation[] existingQuotes)
-        {
-           
-            // TODO: Return the list of quotes for the specified ticker.
-            return new Quotation[] { };
-        }
+        public abstract Quotation[] GetQuotes(string ticker, Periodicity periodicity, int sinceDate);
     }
 }

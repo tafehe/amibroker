@@ -16,6 +16,7 @@ namespace AmiBroker.Plugin
     using System.Net.Http;
     using System.Runtime.InteropServices;
     using System.Text;
+    using System.Windows;
     using System.Windows.Controls;
 
     using Controls;
@@ -36,7 +37,7 @@ namespace AmiBroker.Plugin
         /// <summary>
         /// Default encoding
         /// </summary>
-        static Encoding encoding = Encoding.GetEncoding("windows-1251"); // TODO: Update it based on your preferences
+        static Encoding encoding = Encoding.GetEncoding("windows-1252"); // TODO: Update it based on your preferences
 
         static DataSource DataSource;
 
@@ -76,7 +77,8 @@ namespace AmiBroker.Plugin
                 case PluginNotificationReason.DatabaseLoaded:
                     DataSource = new StooqDataSource(
                         databasePath: Marshal.PtrToStringAnsi(notification->DatabasePath),
-                        mainWnd: notification->MainWnd);
+                        mainWnd: notification->MainWnd
+                    );
                     RightClickMenu = new RightClickMenu(DataSource);
                     break;
                 case PluginNotificationReason.DatabaseUnloaded:
@@ -100,57 +102,39 @@ namespace AmiBroker.Plugin
         [DllExport(CallingConvention = CallingConvention.Cdecl)]
         public static unsafe int GetQuotesEx(string ticker, Periodicity periodicity, int lastValid, int size, Quotation* quotes, GQEContext* context)
         {
-            Debug.WriteLine("GetQuotesEx(ticker: " + ticker + ", periodicity: " + periodicity + ", lastValid: " + lastValid + ", size: " + size + ", ...)");
-
-            //var existingQuotes = new Quotation[0];
-
-            //if (lastValid > 2)
-            //{
-            //    Array.Resize<Quotation>(ref existingQuotes, lastValid + 1);
-
-            //    for (var i = 0; i <= lastValid; i++)
-            //    {
-            //        existingQuotes[i] = new Quotation
-            //        {
-            //            DateTime = quotes[i].DateTime,
-            //            Open = quotes[i].Open,
-            //            High = quotes[i].High,
-            //            Low = quotes[i].Low,
-            //            Price = quotes[i].Price,
-            //            Volume = quotes[i].Volume,
-            //            OpenInterest = quotes[i].OpenInterest,
-            //            AuxData1 = quotes[i].AuxData1,
-            //            AuxData2 = quotes[i].AuxData2
-            //        };
-            //    }
-
-            //    Array.Sort<Quotation>(existingQuotes, new Comparison<Quotation>((q1, q2) => q1.DateTime.CompareTo(q2.DateTime)));
-            //}
-
-            var newQuotes = DataSource.GetQuotes(ticker, periodicity, size, null);
-
-            if (newQuotes.Any())
+            try
             {
-                lastValid = 0;
-                for (var i = 0; i < newQuotes.Length; i++)
-                {
-                    quotes[i].DateTime = newQuotes[i].DateTime;
-                    quotes[i].Price = newQuotes[i].Price;
-                    quotes[i].Open = newQuotes[i].Open;
-                    quotes[i].High = newQuotes[i].High;
-                    quotes[i].Low = newQuotes[i].Low;
-                    quotes[i].Volume = newQuotes[i].Volume;
-                    quotes[i].OpenInterest = newQuotes[i].OpenInterest;
-                    quotes[i].AuxData1 = newQuotes[i].AuxData1;
-                    quotes[i].AuxData2 = newQuotes[i].AuxData2;
-                    lastValid++;
-                }
+                Debug.WriteLine("GetQuotesEx(ticker: " + ticker + ", periodicity: " + periodicity + ", lastValid: " + lastValid + ", size: " + size + ", ...)");
 
-                return lastValid;
+                var newQuotes = DataSource.GetQuotes(ticker, periodicity, size);
+
+                if (!newQuotes.Any()) return lastValid + 1;
+                
+                for (var i = 0; i < newQuotes.Length; i++) Copy(quotes, newQuotes, i);
+                return newQuotes.Length;
+
+                // return 'lastValid + 1' if no updates are found and you want to keep all existing records
             }
+            catch (Exception e)
+            {
+                MessageBox.Show(e.Message + Environment.NewLine + e.ToString());
+                Debug.WriteLine(e.Message + Environment.NewLine + e.ToString());
 
-            // return 'lastValid + 1' if no updates are found and you want to keep all existing records
-            return lastValid + 1;
+                throw e;
+            }
+        }
+
+        private static unsafe void Copy(Quotation* destination, Quotation[] source, int i)
+        {
+            destination[i].DateTime = source[i].DateTime;
+            destination[i].Price = source[i].Price;
+            destination[i].Open = source[i].Open;
+            destination[i].High = source[i].High;
+            destination[i].Low = source[i].Low;
+            destination[i].Volume = source[i].Volume;
+            destination[i].OpenInterest = source[i].OpenInterest;
+            destination[i].AuxData1 = source[i].AuxData1;
+            destination[i].AuxData2 = source[i].AuxData2;
         }
 
         public unsafe delegate void* Alloc(uint size);

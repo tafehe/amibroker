@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -12,19 +11,19 @@ namespace AmiBroker.Plugin.Providers.Stooq
 {
     internal class StooqDataLoader
     {
+        private const string DefaultStartDate = "1970-01-01 00:00";
         private const string DownloadLastRun = "LAST_DOWNLOAD_RUN";
         private const string LastEntryInFile = "LAST_ENTRY_IN_FILE";
         private const string SecondTimeCheckAfter = "SECOND_CHECK_ON_OR_AFTER";
-        private const string DefaultStartDate = "1970-01-01 00:00";
         private const string EodUrl =     "https://stooq.pl/q/d/l/?s={0}&d1={1}&d2={2}&i=d";
         private const string IntradyUrl = "https://stooq.pl/q/l/?s={0}&f=d1ohlcv";
         private readonly Regex _linePatter = new Regex(@"^[0-9,\.,-]+$");
-        private readonly Dictionary<string, string> _config;
+        private readonly IDictionary<string, string> _config;
         private readonly string _configFile;
         private readonly string _file;
         private readonly string _ticker;
 
-        public StooqDataLoader(string ticker, string databasePath)
+        internal StooqDataLoader(string ticker, string databasePath)
         {
             _ticker = ticker;
             _file = databasePath + @"\" + ticker + ".csv";
@@ -35,133 +34,128 @@ namespace AmiBroker.Plugin.Providers.Stooq
         public IEnumerable<string> LoadFile()
         {
             var result = LoadLocalFile();
-            IEnumerable<string> remoteFile;
-            if (IsRefreshNeeded())
-            {
-                remoteFile = LoadRemoteEodFile();
-                result = Merge(result, remoteFile);
-            }
-            remoteFile = LoadRemoteIntradayFile();
+
+            if (IsRefreshNeeded()) result = Merge(LoadRemoteEodFile, result);
 
             SaveFile(result);
             SaveConfig();
 
-            return Merge(result, remoteFile);
+            result = Merge(LoadRemoteIntradayFile, result);
+
+            return result;
         }
 
-        private IEnumerable<string> Merge(IEnumerable<string> first, IEnumerable<string> second)
+        private IEnumerable<string> Merge(Func<IEnumerable<string>> loadFunc, IEnumerable<string> source)
         {
+            var toBeAppended = loadFunc();
+
             // first line of the stooq file has to be skipped
-            if (second.Count() < 2) return first;
-            if (first.Count() < 2) return second;
+            if (source.Count() < 2) return toBeAppended;
+            if (toBeAppended.Count() < 2) return source;
 
-            var validatedSecond = second.Where(x => IsValid(x));
+            var validatedLines = toBeAppended.Where(IsValid);
 
-            if (!validatedSecond.Any()) return first;
+            if (!validatedLines.Any()) return source;
 
-            var firstDateInSecond = GetStartDateAsLong(validatedSecond.First());
+            var firstDateInLoaded = GetStartDateAsInt(validatedLines.First());
 
             // find the last entry in first list which is older then the first entry in the second list
-            var validatedFirst = first
-                .Where(x => !String.IsNullOrEmpty(x))
-                .TakeWhile(x => GetStartDateAsLong(x) < firstDateInSecond).ToList();
-            validatedFirst.AddRange(validatedSecond);
+            var validatedSource = source
+                .Where(x => !string.IsNullOrEmpty(x))
+                .TakeWhile(x => GetStartDateAsInt(x) < firstDateInLoaded).ToList();
+            validatedSource.AddRange(validatedLines);
 
-            return validatedFirst;
+            return validatedSource;
         }
 
-        private long GetStartDateAsLong(string line)
+        private int GetStartDateAsInt(string line)
         {
-            if (IsValid(line)) 
-            {
-                return Convert.ToInt64(line.Split(',')[0].Replace("-", ""));
-            }
-
-            return String.IsNullOrEmpty(line) ? 99999999L : -1L;
+            return IsValid(line) 
+                ? Convert.ToInt32(line.Split(',')[0].Replace("-", ""))
+                : string.IsNullOrEmpty(line) ? 99999999 : -1;
         }
 
         private IEnumerable<string> LoadRemoteEodFile()
         {
             var startDate = _config.GetValue(LastEntryInFile, "19700101").Replace("-", "");
             var endDate = DateTime.Now.AddDays(-1).ToString("yyyyMMdd");
-            var url = String.Format(EodUrl, _ticker, startDate, endDate);
+            var url = string.Format(EodUrl, _ticker, startDate, endDate);
+            var fileContent = GetUrlReponse(url);
 
-            return GetUrlReponse(url);
+            _config.AddOrReplaceValue(LastEntryInFile, GetLastValidLine(fileContent));
+            
+            return fileContent;
         } 
 
         private IEnumerable<string> LoadRemoteIntradayFile()
         {
-            var url = String.Format(IntradyUrl, _ticker);
+            if (IsWeekend()) return Enumerable.Empty<string>();
 
-            return GetUrlReponse(url);
+            var url = string.Format(IntradyUrl, _ticker);
+            var fileContent = GetUrlReponse(url);
+
+            return fileContent;
         }
 
-        private IEnumerable<string> GetUrlReponse(string url)
+        private static bool IsWeekend()
         {
-            try
-            {
-                var request = WebRequest.Create(url);
-                var response = request.GetResponse();
+            return DateTime.Now.DayOfWeek == DayOfWeek.Saturday
+                || DateTime.Now.DayOfWeek == DayOfWeek.Sunday;
+        }
 
-                var dataStream = response.GetResponseStream();
-                // Open the stream using a StreamReader for easy access.
-                if (dataStream != null)
-                {
-                    var reader = new StreamReader(dataStream);
-                    // Read the content.
-                    var responseFromServer = reader.ReadToEnd();
+        private static IEnumerable<string> GetUrlReponse(string url)
+        {
+            var request = WebRequest.Create(url);
+            var response = request.GetResponse();
 
-                    return Regex.Split(responseFromServer, @"\r\n").ToList();
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e.ToString());
-            }
+            var dataStream = response.GetResponseStream();
 
-            return Enumerable.Empty<string>();
+            if (dataStream == null) return Enumerable.Empty<string>();
+            
+            // Open the stream using a StreamReader for easy access.
+            var reader = new StreamReader(dataStream);
+            // Read the content.
+            var responseFromServer = reader.ReadToEnd();
+
+            return Regex.Split(responseFromServer, @"\r\n").ToList();
+
         }
 
         private IEnumerable<string> LoadLocalFile()
         {
-            if (File.Exists(_file)) {
-                var fileContent = File.ReadAllLines(_file);
+            if (!File.Exists(_file)) return Enumerable.Empty<string>();
+            
+            var fileContent = File.ReadAllLines(_file);
+            var lastLine = GetLastValidLine(fileContent);
+            _config.AddOrReplaceValue(LastEntryInFile, lastLine);
 
-                var lastLine = fileContent.Where(x => !String.IsNullOrEmpty(x))
-                    .DefaultIfEmpty(String.Empty)
-                    .Select(x => x.Split(',')[0])
-                    .Last();
-                _config.AddOrReplaceValue(LastEntryInFile, lastLine);
-
-                return fileContent.ToList();
-            }
-
-            return Enumerable.Empty<string>();
+            return fileContent; 
         }
-        
+
+        private static string GetLastValidLine(IEnumerable<string> fileContent)
+        {
+            return fileContent.Where(x => !string.IsNullOrEmpty(x))
+                .DefaultIfEmpty(string.Empty)
+                .Select(x => x.Split(',')[0])
+                .Last();
+        }
 
         private bool IsValid(string line)
         {
-            if (String.IsNullOrEmpty(line))
-            {
-                return false;
-            }
-
-            return _linePatter.IsMatch(line);
+            return !string.IsNullOrEmpty(line) && _linePatter.IsMatch(line);
         }
 
         private Boolean IsRefreshNeeded()
         {
             var downloadLastRun = _config.GetDateValue(DownloadLastRun, DefaultStartDate);
-            var now = DateTime.Now;
 
-            if (now.Date > downloadLastRun.Date) return true;
+            if (DateTime.Now.Date > downloadLastRun.Date) return true;
 
             var secondCheckTime = _config.GetTimeValue(SecondTimeCheckAfter);
 
             // if last downloaded time was before second time download check
             // and now is after second time check then refresh is needed.
-            return downloadLastRun.TimeOfDay <= secondCheckTime && secondCheckTime <= now.TimeOfDay;
+            return downloadLastRun.TimeOfDay <= secondCheckTime && secondCheckTime <= DateTime.Now.TimeOfDay;
         }
 
         private void SaveFile(IEnumerable<string> fileContent)
@@ -170,18 +164,14 @@ namespace AmiBroker.Plugin.Providers.Stooq
             File.WriteAllLines(_file, fileContent);
         }
 
-        private Dictionary<string, string> LoadConfig()
+        private IDictionary<string, string> LoadConfig()
         {
-            var data = new Dictionary<string, string>();
-            if (File.Exists(_configFile))
-            {
-                foreach (var row in File.ReadAllLines(_configFile))
-                {
-                    data.Add(row.Split('=')[0], String.Join("=", row.Split('=').Skip(1).ToArray()));
-                }
-            }
+            if (!File.Exists(_configFile)) return new Dictionary<string, string>();
 
-            return data;
+            return File.ReadAllLines(_configFile).ToDictionary(
+                line => line.Split('=')[0],
+                line => line.Split('=')[1]
+            );
         }
 
         private void SaveConfig()
@@ -193,38 +183,26 @@ namespace AmiBroker.Plugin.Providers.Stooq
 
     public static class LocalExtentions
     {
-        public static string GetValue(this Dictionary<string, string> dictionary, string key, string defaultValue)
+        public static string GetValue(this IDictionary<string, string> dictionary, string key, string defaultValue)
         {
-            if (!dictionary.TryGetValue(key, out string value))
-            {
-                value = defaultValue;
-            }
-
-            return value;
+            return !dictionary.TryGetValue(key, out string value) ? defaultValue : value;
         }
 
-        public static void AddOrReplaceValue(this Dictionary<string, string> dictionary, string key, string value)
+        public static void AddOrReplaceValue(this IDictionary<string, string> dictionary, string key, string value)
         {
-            if (dictionary.ContainsKey(key))
-            {
-                dictionary.Remove(key);
-            }
-
+            if (dictionary.ContainsKey(key)) dictionary.Remove(key);
             dictionary.Add(key, value);
         }
 
-        public static DateTime GetDateValue(this Dictionary<string, string> dictionary, string key, string defaultValue)
+        public static DateTime GetDateValue(this IDictionary<string, string> dictionary, string key, string defaultValue)
         {
             var value = GetValue(dictionary, key, defaultValue);
-            if (!String.IsNullOrEmpty(value))
-            {
-                return DateTime.ParseExact(value, "yyyy-MM-dd HH:mm", CultureInfo.InstalledUICulture);
-            }
-
-            return DateTime.MinValue;
+            return !string.IsNullOrEmpty(value) 
+                ? DateTime.ParseExact(value, "yyyy-MM-dd HH:mm", CultureInfo.InstalledUICulture) 
+                : DateTime.MinValue;
         }
 
-        public static TimeSpan GetTimeValue(this Dictionary<string, string> dictionary, string key)
+        public static TimeSpan GetTimeValue(this IDictionary<string, string> dictionary, string key)
         {
             var value = GetValue(dictionary, key, "18:00");
             return TimeSpan.ParseExact(value, "hh\\:mm", CultureInfo.InstalledUICulture);

@@ -110,7 +110,6 @@
     <Compile Include="Models\GQEContext.cs" />
     <Compile Include="Models\InfoSite.cs" />
     <Compile Include="Models\IntradaySettings.cs" />
-    <Compile Include="Models\Keyboard.cs" />
     <Compile Include="Models\OptimizeItem.cs" />
     <Compile Include="Models\OptimizeParams.cs" />
     <Compile Include="Models\Periodicity.cs" />

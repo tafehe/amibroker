@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 using AmiBroker.Plugin.Models;
 
@@ -8,52 +9,46 @@ namespace AmiBroker.Plugin.Providers.Stooq
 {
     internal class StooqDataSource : DataSource
     {
-        private readonly Regex _dateRegex = new Regex(@"^\d+$");
+        private readonly Regex _linePattern = new Regex(@"^[0-9,\.,-]+$");
         private readonly string _databasePath;
+
         public StooqDataSource(string databasePath, IntPtr mainWnd) : base(databasePath, mainWnd)
         {
             _databasePath = databasePath;
         }
 
-        public override Quotation[] GetQuotes(string ticker, Periodicity periodicity, int limit,
-            Quotation[] existingQuotes)
+        public override Quotation[] GetQuotes(string ticker, Periodicity periodicity, int limit)
         {
             var result = GetQuotes(ticker);
 
-            if (result.Count > limit)
+            var resultCount = result.Count();
+            if (resultCount > limit)
             {
-                result = result.GetRange(result.Count - limit, limit);
+                result = result.Skip(Math.Max(0, resultCount - limit));
             }
 
             return result.ToArray();
         }
 
-        private List<Quotation> GetQuotes(string ticker)
-        {
-            var list = new List<Quotation>();
-            var fileContent = new StooqDataLoader(ticker, _databasePath).LoadFile();
-            foreach (var line in fileContent)
-            {
-                var value = line.Split(',');
-                if (!_dateRegex.Match(value[0].Replace("-", "")).Success) continue;
-
-                var quotation = new Quotation
+        private IEnumerable<Quotation> GetQuotes(string ticker) => new StooqDataLoader(ticker, _databasePath)
+            .LoadFile()
+            .Where(x => _linePattern.IsMatch(x))
+            .Select(line =>
                 {
-                    DateTime = new AmiDate(
-                        DateTime.ParseExact(value[0].Replace("-", ""), "yyyyMMdd", CultureInfo.InvariantCulture),
-                        true),
-                    Open = Convert.ToSingle(value[1], CultureInfo.InvariantCulture),
-                    High = Convert.ToSingle(value[2], CultureInfo.InvariantCulture),
-                    Low = Convert.ToSingle(value[3], CultureInfo.InvariantCulture),
-                    Price = Convert.ToSingle(value[4], CultureInfo.InvariantCulture),
-                    // not always volume is given in the file
-                    Volume = value.Length < 6 ? 0 : Convert.ToSingle(value[5], CultureInfo.InvariantCulture)
-                };
-
-                list.Add(quotation);
-            }
-            return list;
-        }
-
+                    var value = line.Split(',');
+                    return new Quotation
+                    {
+                        DateTime = new AmiDate(
+                            DateTime.ParseExact(value[0].Replace("-", ""), "yyyyMMdd", CultureInfo.InvariantCulture),
+                            true
+                        ),
+                        Open = Convert.ToSingle(value[1], CultureInfo.InvariantCulture),
+                        High = Convert.ToSingle(value[2], CultureInfo.InvariantCulture),
+                        Low = Convert.ToSingle(value[3], CultureInfo.InvariantCulture),
+                        Price = Convert.ToSingle(value[4], CultureInfo.InvariantCulture),
+                        // not always volume is given in the file
+                        Volume = value.Length < 6 ? 0 : Convert.ToSingle(value[5], CultureInfo.InvariantCulture)
+                    };
+                });
     }
 }
