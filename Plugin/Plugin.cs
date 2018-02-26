@@ -9,15 +9,12 @@ using AmiBroker.Plugin.Providers.Stooq;
 namespace AmiBroker.Plugin
 {
     using System;
-    using System.Collections.Specialized;
     using System.Diagnostics;
     using System.Drawing;
     using System.Linq;
-    using System.Net.Http;
     using System.Runtime.InteropServices;
     using System.Text;
     using System.Windows;
-    using System.Windows.Controls;
 
     using Controls;
     using Models;
@@ -32,7 +29,7 @@ namespace AmiBroker.Plugin
         /// <summary>
         /// Plugin status code
         /// </summary>
-        static StatusCode Status = StatusCode.OK;
+        internal static StatusCode Status { get; set; } = StatusCode.OK;
 
         /// <summary>
         /// Default encoding
@@ -52,7 +49,7 @@ namespace AmiBroker.Plugin
             pluginInfo.Name = "http://stooq.pl data Plug-in";
             pluginInfo.Vendor = "KEPISO.PL";
             pluginInfo.Type = PluginType.Data;
-            pluginInfo.Version = 10000; // v1.0.0
+            pluginInfo.Version = 100512; // v10.5.12
             pluginInfo.IDCode = new PluginID("STUQ");
             pluginInfo.Certificate = 0;
             pluginInfo.MinAmiVersion = 5600000; // v5.60
@@ -104,16 +101,18 @@ namespace AmiBroker.Plugin
         {
             try
             {
-                Debug.WriteLine("GetQuotesEx(ticker: " + ticker + ", periodicity: " + periodicity + ", lastValid: " + lastValid + ", size: " + size + ", ...)");
+                Debug.WriteLine(
+                    $"GetQuotesEx(ticker: {ticker}, periodicity: {periodicity}, lastValid: {lastValid}, size: {size} ..."
+                );
 
                 var newQuotes = DataSource.GetQuotes(ticker, periodicity, size);
 
+                // return 'lastValid + 1' if no updates are found and you want to keep all existing records
                 if (!newQuotes.Any()) return lastValid + 1;
                 
                 for (var i = 0; i < newQuotes.Length; i++) Copy(quotes, newQuotes, i);
-                return newQuotes.Length;
 
-                // return 'lastValid + 1' if no updates are found and you want to keep all existing records
+                return newQuotes.Length;
             }
             catch (Exception e)
             {
