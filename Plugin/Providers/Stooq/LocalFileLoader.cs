@@ -18,19 +18,5 @@ namespace AmiBroker.Plugin.Providers.Stooq
 
             return fileContent;
         }
-        
-//        public IEnumerable<string> LoadFile()
-//        {
-//            var result = LoadLocalFile();
-//
-//            if (IsRefreshNeeded()) result = Merge(LoadRemoteEodFile, result);
-//
-//            SaveFile(result);
-//            SaveConfig();
-//
-//            result = Merge(LoadRemoteIntradayFile, result);
-//
-//            return result;
-//        }
     }
 }

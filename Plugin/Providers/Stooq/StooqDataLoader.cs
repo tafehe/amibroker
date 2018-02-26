@@ -5,11 +5,11 @@ namespace AmiBroker.Plugin.Providers.Stooq
 {
     internal class StooqDataLoader
     {
-        private readonly LocalFileLoader _localFileLoader;
-        private readonly EodFileLoader _eodFileLoader;
-        private readonly IntradayFileLoader _intradayFileLoader;
+        private readonly FileLoader _localFileLoader;
+        private readonly FileLoader _eodFileLoader;
+        private readonly FileLoader _intradayFileLoader;
 
-        internal StooqDataLoader(LocalFileLoader localFileLoader, EodFileLoader eodFileLoader, IntradayFileLoader intradayFileLoader)
+        internal StooqDataLoader(FileLoader localFileLoader, FileLoader eodFileLoader, FileLoader intradayFileLoader)
         {
             _localFileLoader = localFileLoader;
             _eodFileLoader = eodFileLoader;
@@ -19,10 +19,10 @@ namespace AmiBroker.Plugin.Providers.Stooq
         internal IEnumerable<string> LoadFile()
         {
             var result = _localFileLoader.Load().ToList();
-            var fileLength = result.Count();
+            var fileLength = result.Count;
             
             result = Merge(result, _eodFileLoader.Load()).ToList();
-            if (fileLength < result.Count())
+            if (fileLength < result.Count)
             {
                 _localFileLoader.SaveFile(result);
             }
