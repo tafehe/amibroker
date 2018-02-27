@@ -33,12 +33,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
         private IEnumerable<Quotation> GetQuotes(string ticker)
         {
             var configuration = new Configuration(_databasePath, ticker);
-            return new StooqDataLoader
-            (
-                new LocalFileLoader(configuration),
-                new EodFileLoader(configuration),
-                new IntradayFileLoader(configuration)
-            )
+            return GetLodaer(configuration)
             .LoadFile()
             .Where(x => _linePattern.IsMatch(x))
             .Select(line =>
@@ -46,10 +41,7 @@ namespace AmiBroker.Plugin.Providers.Stooq
                 var value = line.Split(',');
                 return new Quotation
                 {
-                    DateTime = new AmiDate(
-                        DateTime.ParseExact(value[0].Replace("-", ""), "yyyyMMdd", CultureInfo.InvariantCulture),
-                        true
-                    ),
+                    DateTime = new AmiDate(value[0].AsDateTime(), true),
                     Open = Convert.ToSingle(value[1], CultureInfo.InvariantCulture),
                     High = Convert.ToSingle(value[2], CultureInfo.InvariantCulture),
                     Low = Convert.ToSingle(value[3], CultureInfo.InvariantCulture),
@@ -58,6 +50,31 @@ namespace AmiBroker.Plugin.Providers.Stooq
                     Volume = value.Length < 6 ? 0 : Convert.ToSingle(value[5], CultureInfo.InvariantCulture)
                 };
             });
+        }
+
+        private StooqDataLoader GetLodaer(Configuration configuration)
+        {
+            return Mode == Mode.Online ? OnlineLoader(configuration) : OffileLoader(configuration);
+        }
+
+        private static StooqDataLoader OnlineLoader(Configuration configuration)
+        {
+            return new StooqDataLoader
+            (
+                new LocalFileLoader(configuration),
+                new EodFileLoader(configuration),
+                new IntradayFileLoader(configuration)
+            );
+        }
+
+        private static StooqDataLoader OffileLoader(Configuration configuration)
+        {
+            return new StooqDataLoader
+            (
+                new LocalFileLoader(configuration),
+                new DummyFileLoader(configuration),
+                new DummyFileLoader(configuration)
+            );
         }
     }
 }

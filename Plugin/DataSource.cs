@@ -13,24 +13,26 @@ namespace AmiBroker.Plugin
 
     public abstract class DataSource
     {
-        public DataSource(string databasePath, IntPtr mainWnd)
+        internal DataSource(string databasePath, IntPtr mainWnd)
         {
-            this.DatabasePath = databasePath;
-            this.MainWnd = mainWnd;
+            DatabasePath = databasePath;
+            MainWnd = mainWnd;
         }
 
-        public string DatabasePath { get; set; }
+        internal string DatabasePath { get; set; }
+
+        internal Mode Mode { get; set; } = Mode.Online;
 
         /// <summary>
         /// Gets the pointer to AmiBroker's main window.
         /// </summary>
-        public IntPtr MainWnd { get; private set; }
+        public IntPtr MainWnd { get; }
 
         /// <summary>
         /// Gets AmiBroker's OLE automation object.
         /// </summary>
         public dynamic Broker { get; private set; }
 
-        public abstract Quotation[] GetQuotes(string ticker, Periodicity periodicity, int sinceDate);
+        public abstract Quotation[] GetQuotes(string ticker, Periodicity periodicity, int size);
     }
 }

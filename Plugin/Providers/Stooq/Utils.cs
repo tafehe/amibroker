@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace AmiBroker.Plugin.Providers.Stooq
 {
@@ -23,6 +24,11 @@ namespace AmiBroker.Plugin.Providers.Stooq
                 : string.IsNullOrEmpty(line) ? 99999999 : -1;
         }
 
+        internal static DateTime AsDateTime(this string value)
+        {
+            return DateTime.ParseExact(value.Replace("-", ""), "yyyyMMdd", CultureInfo.InvariantCulture);
+        }
+        
         internal static bool IsWeekend(this DateTime dateTime)
         {
             return dateTime.DayOfWeek == DayOfWeek.Saturday

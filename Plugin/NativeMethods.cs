@@ -12,7 +12,8 @@ namespace AmiBroker.Plugin
     internal static class NativeMethods
     {
         /// <summary>
-        /// Sends the specified message to a window or windows. It calls the window procedure for the specified window and does not return until the window procedure has processed the message.
+        /// Sends the specified message to a window or windows. It calls the window procedure for the specified
+        /// window and does not return until the window procedure has processed the message.
         /// </summary>
         /// <param name="hWnd">AmiBroker's main window handler.</param>
         /// <param name="Msg">The message code.</param>

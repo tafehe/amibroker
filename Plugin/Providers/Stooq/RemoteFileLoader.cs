@@ -11,6 +11,9 @@ namespace AmiBroker.Plugin.Providers.Stooq
         protected static IEnumerable<string> GetUrlReponse(string url)
         {
             var request = WebRequest.Create(url);
+
+            request.Timeout = 500;
+
             var response = request.GetResponse();
 
             var dataStream = response.GetResponseStream();

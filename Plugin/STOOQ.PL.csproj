@@ -136,11 +136,12 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Providers\Stooq\Configuration.cs" />
     <Compile Include="Providers\Stooq\ContentValidator.cs" />
+    <Compile Include="Providers\Stooq\DummyFileLoader.cs" />
     <Compile Include="Providers\Stooq\EodFileLoader.cs" />
     <Compile Include="Providers\Stooq\FileLoader.cs" />
     <Compile Include="Providers\Stooq\IntradayFileLoader.cs" />
     <Compile Include="Providers\Stooq\LocalFileLoader.cs" />
-    <Compile Include="Providers\Stooq\RemoteFIleLoader.cs" />
+    <Compile Include="Providers\Stooq\RemoteFileLoader.cs" />
     <Compile Include="Providers\Stooq\StooqDataLoader.cs" />
     <Compile Include="Providers\Stooq\StooqDataSource.cs" />
     <Compile Include="Providers\Stooq\Utils.cs" />

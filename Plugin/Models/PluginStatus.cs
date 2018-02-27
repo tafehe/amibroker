@@ -13,9 +13,15 @@ namespace AmiBroker.Plugin.Models
         OK,
         Wait,
         Error,
+        Offline,
         Unknown
     }
 
+    internal enum Mode
+    {
+        Online,
+        Offline
+    }
 
     [StructLayoutAttribute(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct PluginStatus

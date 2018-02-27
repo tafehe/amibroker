@@ -4,6 +4,7 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 
+using System.Collections.Generic;
 using AmiBroker.Plugin.Providers.Stooq;
 
 namespace AmiBroker.Plugin
@@ -29,12 +30,12 @@ namespace AmiBroker.Plugin
         /// <summary>
         /// Plugin status code
         /// </summary>
-        internal static StatusCode Status { get; set; } = StatusCode.OK;
+        private static StatusCode Status { get; set; } = StatusCode.OK;
 
         /// <summary>
         /// Default encoding
         /// </summary>
-        static Encoding encoding = Encoding.GetEncoding("windows-1252"); // TODO: Update it based on your preferences
+        static readonly Encoding encoding = Encoding.GetEncoding("windows-1252");
 
         static DataSource DataSource;
 
@@ -73,8 +74,8 @@ namespace AmiBroker.Plugin
             {
                 case PluginNotificationReason.DatabaseLoaded:
                     DataSource = new StooqDataSource(
-                        databasePath: Marshal.PtrToStringAnsi(notification->DatabasePath),
-                        mainWnd: notification->MainWnd
+                        Marshal.PtrToStringAnsi(notification->DatabasePath),
+                        notification->MainWnd
                     );
                     RightClickMenu = new RightClickMenu(DataSource);
                     break;
@@ -105,25 +106,42 @@ namespace AmiBroker.Plugin
                     $"GetQuotesEx(ticker: {ticker}, periodicity: {periodicity}, lastValid: {lastValid}, size: {size} ..."
                 );
 
-                var newQuotes = DataSource.GetQuotes(ticker, periodicity, size);
+                Quotation[] newQuotes = { };
+                try
+                {
+                    newQuotes = DataSource.GetQuotes(ticker, periodicity, size);
+                }
+                catch (Exception)
+                {
+                    if (DataSource.Mode == Mode.Online)
+                    {
+                        Status = StatusCode.Offline;
+                        DataSource.Mode = Mode.Offline;
+                        newQuotes = DataSource.GetQuotes(ticker, periodicity, size);
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
 
                 // return 'lastValid + 1' if no updates are found and you want to keep all existing records
                 if (!newQuotes.Any()) return lastValid + 1;
-                
+
                 for (var i = 0; i < newQuotes.Length; i++) Copy(quotes, newQuotes, i);
 
                 return newQuotes.Length;
             }
             catch (Exception e)
             {
-                MessageBox.Show(e.Message + Environment.NewLine + e.ToString());
-                Debug.WriteLine(e.Message + Environment.NewLine + e.ToString());
-
-                throw e;
+                MessageBox.Show(e.Message + Environment.NewLine + e);
+                Debug.WriteLine(e.Message + Environment.NewLine + e);
             }
+
+            return -1;
         }
 
-        private static unsafe void Copy(Quotation* destination, Quotation[] source, int i)
+        private static unsafe void Copy(Quotation* destination, IList<Quotation> source, int i)
         {
             destination[i].DateTime = source[i].DateTime;
             destination[i].Price = source[i].Price;
@@ -174,6 +192,9 @@ namespace AmiBroker.Plugin
                 case StatusCode.Error:
                     SetStatus(statusPtr, StatusCode.Error, Color.Red, "ERR", "An error occured");
                     break;
+                case StatusCode.Offline:
+                    SetStatus(statusPtr, StatusCode.Offline, Color.Brown, "OFL", "Offline");
+                    break;
                 default:
                     SetStatus(statusPtr, StatusCode.Unknown, Color.LightGray, "Ukno", "Unknown status");
                     break;
@@ -194,7 +215,7 @@ namespace AmiBroker.Plugin
         /// Update status of the plugin
         /// </summary>
         /// <param name="statusPtr">A pointer to <see cref="AmiBrokerPlugin.PluginStatus"/></param>
-        static void SetStatus(IntPtr statusPtr, StatusCode code, Color color, string shortMessage, string fullMessage)
+        private static void SetStatus(IntPtr statusPtr, StatusCode code, Color color, string shortMessage, string fullMessage)
         {
             Marshal.WriteInt32(new IntPtr(statusPtr.ToInt32() + 4), (int)code);
             Marshal.WriteInt32(new IntPtr(statusPtr.ToInt32() + 8), color.R);
@@ -203,7 +224,7 @@ namespace AmiBroker.Plugin
 
             var msg = encoding.GetBytes(fullMessage);
 
-            for (int i = 0; i < (msg.Length > 255 ? 255 : msg.Length); i++)
+            for (var i = 0; i < (msg.Length > 255 ? 255 : msg.Length); i++)
             {
                 Marshal.WriteInt32(new IntPtr(statusPtr.ToInt32() + 12 + i), msg[i]);
             }
@@ -212,7 +233,7 @@ namespace AmiBroker.Plugin
 
             msg = encoding.GetBytes(shortMessage);
 
-            for (int i = 0; i < (msg.Length > 31 ? 31 : msg.Length); i++)
+            for (var i = 0; i < (msg.Length > 31 ? 31 : msg.Length); i++)
             {
                 Marshal.WriteInt32(new IntPtr(statusPtr.ToInt32() + 268 + i), msg[i]);
             }
